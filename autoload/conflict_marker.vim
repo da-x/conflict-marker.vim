@@ -26,6 +26,22 @@ function! s:current_conflict_end()
     return end
 endfunction
 
+" TODO: there is currently no validation that the base is before the separator, etc.
+" TODO: this might break if there are multiple bases.
+function! s:current_conflict_base()
+    let before_begin = s:current_conflict_begin()
+    let pos = getpos('.')
+    call setpos('.', [pos[0]] + before_begin)
+    let base = searchpos(g:conflict_marker_base, 'cnW')
+    call setpos('.', pos)
+
+    if base != [0, 0] && before_begin != [0, 0] && before_begin[0] < base[0]
+        return base
+    endif
+
+    return [0, 0]
+endfunction
+
 function! s:current_conflict_separator()
     " when separator is before cursor
     let before_begin = s:current_conflict_begin()
@@ -45,19 +61,22 @@ function! s:current_conflict_separator()
 endfunction
 
 function! s:valid_hunk(hunk)
+    " If no items in a:hunk are equal to [0, 0], then true.
     return filter(copy(a:hunk), 'v:val == [0, 0]') == []
 endfunction
 
 function! conflict_marker#markers()
-    return [s:current_conflict_begin(), s:current_conflict_separator(), s:current_conflict_end()]
+    return [s:current_conflict_begin(), s:current_conflict_base(), s:current_conflict_separator(), s:current_conflict_end()]
 endfunction
 
 " Note: temporary implementation, linewise
 function! conflict_marker#themselves()
     let markers = conflict_marker#markers()
     if ! s:valid_hunk(markers) | return | endif
-    execute markers[2][0].'delete'
-    execute markers[0][0].','.markers[1][0].'delete'
+    " delete end
+    execute markers[3][0].'delete'
+    " delete begin to separator
+    execute markers[0][0].','.markers[2][0].'delete'
     silent! call repeat#set("\<Plug>(conflict-marker-themselves)", v:count)
 endfunction
 
@@ -65,7 +84,9 @@ endfunction
 function! conflict_marker#ourselves()
     let markers = conflict_marker#markers()
     if ! s:valid_hunk(markers) | return | endif
-    execute markers[1][0].','.markers[2][0].'delete'
+    " delete base to end
+    execute markers[1][0].','.markers[3][0].'delete'
+    " delete begin
     execute markers[0][0].'delete'
     silent! call repeat#set("\<Plug>(conflict-marker-ourselves)", v:count)
 endfunction
@@ -74,18 +95,22 @@ endfunction
 function! conflict_marker#down_together()
     let markers = conflict_marker#markers()
     if ! s:valid_hunk(markers) | return | endif
-    execute markers[0][0].','.markers[2][0].'delete'
-    silent! call repeat#set("\<Plug>(conflict-marker-both)", v:count)
+    " delete begin to end
+    execute markers[0][0].','.markers[3][0].'delete'
+    silent! call repeat#set("\<Plug>(conflict-marker-none)", v:count)
 endfunction
 
 " Note: temporary implementation, linewise
 function! conflict_marker#compromise()
     let markers = conflict_marker#markers()
     if ! s:valid_hunk(markers) | return | endif
-    execute markers[2][0].'delete'
-    execute markers[1][0].'delete'
+    " delete end
+    execute markers[3][0].'delete'
+    " delete base to separator
+    execute markers[1][0].','.markers[2][0].'delete'
+    " delete begin
     execute markers[0][0].'delete'
-    silent! call repeat#set("\<Plug>(conflict-marker-none)", v:count)
+    silent! call repeat#set("\<Plug>(conflict-marker-both)", v:count)
 endfunction
 
 function! s:jump_to_hunk_if_valid(original_pos, hunk)
@@ -103,6 +128,7 @@ function! conflict_marker#next_conflict(accept_cursor)
     let pos = getpos('.')
     return s:jump_to_hunk_if_valid(pos, [
                 \ searchpos(g:conflict_marker_begin, (a:accept_cursor ? 'cW' : 'W')),
+                \ searchpos(g:conflict_marker_base, 'cW'),
                 \ searchpos(g:conflict_marker_separator, 'cW'),
                 \ searchpos(g:conflict_marker_end, 'cW'),
                 \ ])
@@ -113,6 +139,7 @@ function! conflict_marker#previous_conflict(accept_cursor)
     return s:jump_to_hunk_if_valid(pos, reverse([
                 \ searchpos(g:conflict_marker_end, (a:accept_cursor ? 'bcW' : 'bW')),
                 \ searchpos(g:conflict_marker_separator, 'bcW'),
+                \ searchpos(g:conflict_marker_base, 'bcW'),
                 \ searchpos(g:conflict_marker_begin, 'bcW'),
                 \ ]))
 endfunction

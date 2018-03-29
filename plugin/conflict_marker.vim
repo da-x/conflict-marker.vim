@@ -12,6 +12,7 @@ endfunction
 call s:var('highlight_group', 'Error')
 call s:var('begin', '^<<<<<<< \@=')
 call s:var('separator', '^=======$')
+call s:var('base', '^||||||| \@=')
 call s:var('end', '^>>>>>>> \@=')
 call s:var('enable_mappings', 1)
 call s:var('enable_hooks', 1)
@@ -65,8 +66,9 @@ function! s:set_conflict_marker_to_match_words()
     endif
 
     let b:match_words = get(b:, 'match_words', '')
-                \       . printf(',%s:%s:%s',
+                \       . printf(',%s:%s:%s:%s',
                 \                g:conflict_marker_begin,
+                \                g:conflict_marker_base,
                 \                g:conflict_marker_separator,
                 \                g:conflict_marker_end)
     let b:conflict_marker_match_words_loaded = 1
@@ -78,8 +80,9 @@ function! s:on_detected()
     endif
 
     if g:conflict_marker_enable_highlight
-        execute printf('syntax match ConflictMarker containedin=ALL /\%(%s\|%s\|%s\)/',
+        execute printf('syntax match ConflictMarker containedin=ALL /\%(%s\|%s\|%s\|%s\)/',
                 \      g:conflict_marker_begin,
+                \      g:conflict_marker_base,
                 \      g:conflict_marker_separator,
                 \      g:conflict_marker_end)
         execute 'highlight link ConflictMarker '.g:conflict_marker_highlight_group
